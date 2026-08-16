@@ -6,21 +6,26 @@ import re
 import base64
 import hashlib
 import pandas as pd
+from PIL import Image
+from PIL.ExifTags import TAGS
 
 st.set_page_config(page_title="White Hat Security & Academy Suite", page_icon="🛡️", layout="wide")
 
 st.title("🛡️ White Hat Security & Academy Suite")
 st.caption("Platform edukasi dan toolkit audit keamanan bertahap: Dari konsep dasar hingga analisis tingkat lanjut.")
 
-# Tab Navigation berdasar Level Keahlian
-tab_surf1, tab_surf2, tab_surf3, tab_mid1, tab_mid2, tab_deep1, tab_deep2 = st.tabs([
-    "🔗 1. URL Safety Check",
-    "🏥 2. Web Health Check",
+# Navigation Tabs Berdasarkan Level Keahlian
+tab_surf1, tab_surf2, tab_surf3, tab_surf4, tab_mid1, tab_mid2, tab_mid3, tab_deep1, tab_deep2, tab_deep3 = st.tabs([
+    "🔗 1. URL Safety",
+    "🏥 2. Web Health",
     "🔤 3. Encoder & Hash",
-    "🌐 4. Subdomain Recon",
-    "📝 5. Password Mutator",
-    "🔑 6. JWT Visualizer",
-    "📊 7. CVSS Calculator"
+    "🖼️ 4. EXIF Privacy",
+    "🌐 5. Subdomain Recon",
+    "📝 6. Password Mutator",
+    "🤖 7. Robots.txt Recon",
+    "🔑 8. JWT Visualizer",
+    "📊 9. CVSS Calculator",
+    "🛡️ 10. Log Threat Hunter"
 ])
 
 # ==============================================================================
@@ -80,7 +85,7 @@ with tab_surf2:
 
         if use_mock_health:
             checks.append(("Enkripsi HTTPS", "✅ Terpasang", 0))
-            checks.append(("HTTP Status", "✅ 200 OK (Normal)", 0))
+            checks.append(("HTTP Status Code", "✅ 200 OK (Normal)", 0))
             checks.append(("Header Keamanan (HSTS/CSP)", "❌ Tidak Lengkap", -30))
             score -= 30
         else:
@@ -98,7 +103,6 @@ with tab_surf2:
                     
                 checks.append(("HTTP Status Code", f"✅ {status_code} OK", 0))
                 
-                # Cek Header Sederhana
                 if "strict-transport-security" in [h.lower() for h in headers.keys()]:
                     checks.append(("Perlindungan HSTS", "✅ Aktif", 0))
                 else:
@@ -108,7 +112,6 @@ with tab_surf2:
                 st.error(f"Gagal memeriksa situs: {e}")
                 score = 0
 
-        # Menentukan Grade
         if score >= 90: grade, color = "A+", "green"
         elif score >= 75: grade, color = "B", "blue"
         elif score >= 50: grade, color = "C", "orange"
@@ -143,11 +146,36 @@ with tab_surf3:
         st.text_input("MD5 Hash (32 char):", value=md5_hash, disabled=True)
         st.text_input("SHA-256 Hash (64 char):", value=sha256_hash, disabled=True)
 
+# --- MODUL 4: EXIF PRIVACY INSPECTOR ---
+with tab_surf4:
+    st.markdown("### 🖼️ EXIF Privacy & Location Inspector")
+    st.info("💡 **Level Pemula:** Pelajari bagaimana foto dari ponsel dapat membocorkan lokasi GPS rumah dan tipe perangkat Anda tanpa disadari.")
+
+    uploaded_img = st.file_uploader("Unggah Contoh Foto (.jpg / .jpeg):", type=["jpg", "jpeg"], key="exif_upl")
+    
+    if uploaded_img:
+        try:
+            image = Image.open(uploaded_img)
+            exif_data = image._getexif()
+            
+            if exif_data:
+                metadata = {}
+                for tag_id, value in exif_data.items():
+                    tag_name = TAGS.get(tag_id, tag_id)
+                    metadata[tag_name] = str(value)
+                    
+                st.success("✅ Metadata ditemukan pada file gambar!")
+                st.json({k: metadata[k] for k in list(metadata.keys())[:8]})
+            else:
+                st.warning("ℹ️ Foto ini bersih (Metadata EXIF sudah dihapus atau tidak tersedia).")
+        except Exception as e:
+            st.error(f"Gagal memproses file foto: {e}")
+
 # ==============================================================================
 # LEVEL 2: MID-WATER LEVEL (MENENGAH)
 # ==============================================================================
 
-# --- MODUL 4: PASSIVE SUBDOMAIN FINDER ---
+# --- MODUL 5: PASSIVE SUBDOMAIN FINDER ---
 with tab_mid1:
     st.markdown("### 🌐 Passive Subdomain & Footprint Finder")
     st.info("💡 **Level Menengah:** Mencari jejak cabang domain (*subdomain*) target melalui catatan publik tanpa menyerang server target.")
@@ -176,7 +204,7 @@ with tab_mid1:
             st.success(f"Ditemukan **{len(subdomains)}** subdomain terdaftar.")
             st.dataframe(pd.DataFrame(sorted(list(subdomains)), columns=["Subdomain Target"]), use_container_width=True)
 
-# --- MODUL 5: PASSWORD MUTATOR ---
+# --- MODUL 6: PASSWORD MUTATOR ---
 with tab_mid2:
     st.markdown("### 📝 Password Policy & Mutator")
     st.info("💡 **Level Menengah:** Melihat bagaimana hacker memvariasikan satu kata dasar untuk menebak kata sandi pengguna (*dictionary attack*).")
@@ -193,11 +221,32 @@ with tab_mid2:
         st.success(f"Dihasilkan **{len(mutations)}** variasi kombinasi umum:")
         st.text_area("Kumpulan Kombinasi:", value="\n".join(sorted(list(mutations))), height=160)
 
+# --- MODUL 7: ROBOTS.TXT HUNTER ---
+with tab_mid3:
+    st.markdown("### 🤖 Robots.txt & Hidden Path Recon")
+    st.info("💡 **Level Menengah:** Melihat direktori web yang diminta oleh admin untuk 'disembunyikan' dari Google Search (potensi direktori sensitif).")
+
+    target_web = st.text_input("Domain Target (contoh: https://example.com):", value="https://example.com", key="robots_target")
+    
+    if st.button("🔍 Cek Robots.txt Target", type="primary", key="btn_robots"):
+        robots_url = target_web.rstrip('/') + "/robots.txt"
+        try:
+            req = urllib.request.Request(robots_url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                content = resp.read().decode("utf-8")
+                
+            disallowed = [line for line in content.split('\n') if line.startswith("Disallow:")]
+            
+            st.success(f"File `robots.txt` berhasil diakses! Ditemukan **{len(disallowed)}** aturan penyembunyian.")
+            st.text_area("Isi File Robots.txt:", value=content, height=180)
+        except Exception:
+            st.warning("❌ File `robots.txt` tidak ditemukan atau akses ditolak oleh server.")
+
 # ==============================================================================
 # LEVEL 3: DEEP WATER LEVEL (LANJUTAN / AUDIT)
 # ==============================================================================
 
-# --- MODUL 6: JWT INSPECTOR ---
+# --- MODUL 8: JWT INSPECTOR ---
 with tab_deep1:
     st.markdown("### 🔑 JWT Security & Structure Inspector")
     st.info("💡 **Level Lanjutan:** Membongkar token *login* aplikasi modern (*JSON Web Token*) untuk menginspeksi hak akses dan algoritma enkripsinya.")
@@ -229,7 +278,7 @@ with tab_deep1:
             except Exception as e:
                 st.error(f"Gagal mendekode token: {e}")
 
-# --- MODUL 7: CVSS CALCULATOR ---
+# --- MODUL 9: CVSS CALCULATOR ---
 with tab_deep2:
     st.markdown("### 📊 CVSS v3.1 Severity Rating Calculator")
     st.info("💡 **Level Lanjutan:** Kalkulator standar industri untuk menentukan tingkat keparahan risiko dari celah keamanan yang ditemukan.")
@@ -256,3 +305,33 @@ with tab_deep2:
     elif final_score >= 7.0: st.warning(f"⚠️ **Skor CVSS: {final_score} / 10.0 (HIGH)**")
     elif final_score >= 4.0: st.info(f"ℹ️ **Skor CVSS: {final_score} / 10.0 (MEDIUM)**")
     else: st.success(f"✅ **Skor CVSS: {final_score} / 10.0 (LOW)**")
+
+# --- MODUL 10: WEB LOG THREAT HUNTER ---
+with tab_deep3:
+    st.markdown("### 🛡️ Web Log Threat Hunter")
+    st.info("💡 **Level Lanjutan:** Menganalisis mentahan log server web untuk mendeteksi percobaan serangan SQL Injection, XSS, atau Path Traversal.")
+
+    sample_log = st.text_area("Masukkan Baris Log Akses (atau gunakan sampel):", 
+        value="10.0.0.12 - - [16/Aug/2026:10:01:15] \"GET /admin/login.php?user=admin' OR 1=1-- HTTP/1.1\" 200 4200\n"
+              "172.16.0.4 - - [16/Aug/2026:10:02:30] \"GET /search?q=<script>alert('XSS')</script> HTTP/1.1\" 200 2300\n"
+              "192.168.1.50 - - [16/Aug/2026:10:00:01] \"GET /index.php HTTP/1.1\" 200 1450", height=130, key="log_input")
+
+    if st.button("🚨 Analisis Log Akses", type="primary", key="btn_log_hunter"):
+        lines = [l for l in sample_log.strip().split('\n') if l]
+        threats = []
+        
+        signatures = {
+            "SQL Injection (SQLi)": r"(?i)(OR\s+1=1|SELECT|UNION|'|--)",
+            "Cross-Site Scripting (XSS)": r"(?i)(<script>|javascript:|alert\()"
+        }
+        
+        for line in lines:
+            for threat_name, pattern in signatures.items():
+                if re.search(pattern, line):
+                    threats.append({"Baris Log": line[:60] + "...", "Kategori Ancaman": threat_name})
+                    
+        if threats:
+            st.error(f"🚨 Ditemukan **{len(threats)}** indikasi percobaan serangan pada log!")
+            st.dataframe(pd.DataFrame(threats), use_container_width=True)
+        else:
+            st.success("✅ Log bersih, tidak terdeteksi pola serangan populer.")
